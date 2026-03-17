@@ -4,33 +4,45 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IssueTypeIcon, PriorityIcon, StatusIcon } from "@/components/IssueIcon";
 import CreateIssueDialog from "@/components/CreateIssueDialog";
-import { STATUS_LABELS, cn } from "@/lib/utils";
-import type { Issue, Project, User } from "@shared/schema";
-import { useStore, useProject, useIssues, useSprints, useOrgMembers, useUsers } from "@/lib/storeContext";
+import { PRIORITY_LABELS, STATUS_LABELS, cn } from "@/lib/utils";
+import type { Issue, Project, Sprint, User, IssuePriority, IssueStatus } from "@shared/schema";
+import { useStore, useProject, useIssues, useSprints, useUsers } from "@/lib/storeContext";
 
 interface Props { projectId: string; orgId: string; }
 
 export default function BacklogPage({ projectId, orgId }: Props) {
   const { store, refresh } = useStore();
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterPriority, setFilterPriority] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [sprintsExpanded, setSprintsExpanded] = useState<Record<string, boolean>>({ backlog: true });
 
   const project = useProject(projectId);
   const issues = useIssues(projectId);
   const sprints = useSprints(projectId);
-  const orgMembers = useOrgMembers(orgId);
   const allUsers = useUsers();
 
-  const filtered = issues.filter(i => !search || i.title.toLowerCase().includes(search.toLowerCase()));
+  const filtered = issues.filter(i => {
+    if (filterStatus !== "all" && i.status !== filterStatus) return false;
+    if (filterPriority !== "all" && i.priority !== filterPriority) return false;
+    if (search && !i.title.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
   const sprintIssues = (sprintId: string) => filtered.filter(i => i.sprintId === sprintId);
   const backlogIssues = filtered.filter(i => !i.sprintId);
   const toggle = (key: string) => setSprintsExpanded(p => ({ ...p, [key]: !p[key] }));
 
   const startSprint = (sprintId: string) => { store.updateSprint(sprintId, { status: "active" }); refresh(); };
   const completeSprint = (sprintId: string) => { store.updateSprint(sprintId, { status: "completed" }); refresh(); };
+  const updateIssueStatus = (issueId: string, status: IssueStatus) => { store.updateIssue(issueId, { status }); refresh(); };
+  const moveIssueToSprint = (issueId: string, sprintId: string) => {
+    store.updateIssue(issueId, { sprintId: sprintId === "backlog" ? undefined : sprintId });
+    refresh();
+  };
 
   if (!project) return null;
 
@@ -52,6 +64,24 @@ export default function BacklogPage({ projectId, orgId }: Props) {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            {(["todo", "in_progress", "in_review", "done", "cancelled"] as IssueStatus[]).map(status => (
+              <SelectItem key={status} value={status}>{STATUS_LABELS[status]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterPriority} onValueChange={setFilterPriority}>
+          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Priority" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Priority</SelectItem>
+            {(["urgent", "high", "medium", "low", "none"] as IssuePriority[]).map(priority => (
+              <SelectItem key={priority} value={priority}>{PRIORITY_LABELS[priority]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setCreateOpen(true)} data-testid="button-create-backlog">
           <Plus className="w-3.5 h-3.5" />
           Create Issue
@@ -109,6 +139,9 @@ export default function BacklogPage({ projectId, orgId }: Props) {
                     <div className="px-4 py-4 text-xs text-muted-foreground text-center">No issues in this sprint</div>
                   ) : sIssues.map(issue => (
                     <IssueRow key={issue.id} issue={issue} project={project} allUsers={allUsers}
+                      sprints={sprints}
+                      onStatusChange={(status) => updateIssueStatus(issue.id, status)}
+                      onSprintChange={(sprintId) => moveIssueToSprint(issue.id, sprintId)}
                       onClick={() => { window.location.hash = `/org/${orgId}/project/${projectId}/issue/${issue.id}`; }}
                     />
                   ))}
@@ -143,6 +176,9 @@ export default function BacklogPage({ projectId, orgId }: Props) {
                 <div className="px-4 py-4 text-xs text-muted-foreground text-center">Backlog is empty</div>
               ) : backlogIssues.map(issue => (
                 <IssueRow key={issue.id} issue={issue} project={project} allUsers={allUsers}
+                  sprints={sprints}
+                  onStatusChange={(status) => updateIssueStatus(issue.id, status)}
+                  onSprintChange={(sprintId) => moveIssueToSprint(issue.id, sprintId)}
                   onClick={() => { window.location.hash = `/org/${orgId}/project/${projectId}/issue/${issue.id}`; }}
                 />
               ))}
@@ -172,10 +208,18 @@ export default function BacklogPage({ projectId, orgId }: Props) {
   );
 }
 
-function IssueRow({ issue, project, allUsers, onClick }: {
-  issue: Issue; project: Project; allUsers: User[]; onClick: () => void;
+function IssueRow({ issue, project, allUsers, sprints, onStatusChange, onSprintChange, onClick }: {
+  issue: Issue;
+  project: Project;
+  allUsers: User[];
+  sprints: Sprint[];
+  onStatusChange: (status: IssueStatus) => void;
+  onSprintChange: (sprintId: string) => void;
+  onClick: () => void;
 }) {
   const assignee = allUsers.find(u => u.id === issue.assigneeId);
+  const sprintValue = issue.sprintId ?? "backlog";
+
   return (
     <div
       className="flex items-center gap-3 px-4 py-2 hover:bg-muted/20 cursor-pointer transition-colors"
@@ -190,6 +234,33 @@ function IssueRow({ issue, project, allUsers, onClick }: {
       {assignee && (
         <span className="text-xs text-muted-foreground truncate max-w-[80px]">{assignee.name}</span>
       )}
+      <Select value={issue.status} onValueChange={(v) => onStatusChange(v as IssueStatus)}>
+        <SelectTrigger
+          className="h-7 w-32 text-xs"
+          onClick={e => e.stopPropagation()}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(["todo", "in_progress", "in_review", "done", "cancelled"] as IssueStatus[]).map(status => (
+            <SelectItem key={status} value={status}>{STATUS_LABELS[status]}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={sprintValue} onValueChange={onSprintChange}>
+        <SelectTrigger
+          className="h-7 w-32 text-xs"
+          onClick={e => e.stopPropagation()}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="backlog">Backlog</SelectItem>
+          {sprints.map(sprint => (
+            <SelectItem key={sprint.id} value={sprint.id}>{sprint.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
