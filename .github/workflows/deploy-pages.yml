@@ -32,6 +32,8 @@ jobs:
         run: npm ci
 
       - name: Build static site
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID != '' && vars.VITE_GOOGLE_CLIENT_ID || secrets.VITE_GOOGLE_CLIENT_ID }}
         run: npm run build:pages
 
       - name: Setup Pages
