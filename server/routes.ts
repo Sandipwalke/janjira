@@ -11,16 +11,40 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ── Auth / Session ──────────────────────────────────────────────────────────
 
-  // Mock Google OAuth: in production this would redirect to accounts.google.com
   app.post("/api/auth/google", async (req, res) => {
-    const { credential } = req.body;
-    // For demo: accept any email/name pair
-    const { email, name, picture, sub } = req.body;
-    if (!email) return res.status(400).json({ error: "Missing email" });
-    let user = await storage.getUserByEmail(email);
-    if (!user) {
-      user = await storage.upsertUser({ email, name: name || email, avatar: picture, googleId: sub });
+    const { credential } = req.body as { credential?: string };
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+
+    if (!credential) return res.status(400).json({ error: "Missing Google credential" });
+    if (!googleClientId) return res.status(500).json({ error: "Google login is not configured" });
+
+    const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    if (!tokenInfoRes.ok) return res.status(401).json({ error: "Invalid Google credential" });
+
+    const tokenInfo = await tokenInfoRes.json() as {
+      aud?: string;
+      email?: string;
+      name?: string;
+      picture?: string;
+      sub?: string;
+      email_verified?: string;
+    };
+
+    if (tokenInfo.aud !== googleClientId) return res.status(401).json({ error: "Google client mismatch" });
+    if (!tokenInfo.email || tokenInfo.email_verified !== "true") {
+      return res.status(401).json({ error: "Google email is not verified" });
     }
+
+    let user = await storage.getUserByEmail(tokenInfo.email);
+    if (!user) {
+      user = await storage.upsertUser({
+        email: tokenInfo.email,
+        name: tokenInfo.name || tokenInfo.email,
+        avatar: tokenInfo.picture,
+        googleId: tokenInfo.sub,
+      });
+    }
+
     (req.session as any).userId = user.id;
     res.json(user);
   });
