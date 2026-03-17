@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useProject, useIssues, useSprints } from "@/lib/storeContext";
 import { Zap, Calendar, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -12,9 +12,9 @@ interface Props { projectId: string; orgId: string; }
 
 export default function RoadmapPage({ projectId, orgId }: Props) {
   const [, setLocation] = useLocation();
-  const { data: project } = useQuery<Project>({ queryKey: [`/api/projects/${projectId}`] });
-  const { data: issues = [], isLoading } = useQuery<Issue[]>({ queryKey: [`/api/projects/${projectId}/issues`] });
-  const { data: sprints = [] } = useQuery<Sprint[]>({ queryKey: [`/api/projects/${projectId}/sprints`] });
+  const project = useProject(projectId);
+  const issues = useIssues(projectId);
+  const sprints = useSprints(projectId);
 
   const epics = issues.filter(i => i.type === "epic");
   const stories = issues.filter(i => i.type === "story");

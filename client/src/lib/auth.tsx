@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import { apiRequest } from "./queryClient";
+import { store } from "./store";
 import type { User } from "@shared/schema";
 
 interface AuthContext {
@@ -17,25 +17,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiRequest("GET", "/api/auth/me")
-      .then(r => r.json())
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    // No persistence — users re-login each session (sandboxed iframe environment)
+    setLoading(false);
   }, []);
 
   const loginDemo = async () => {
-    const res = await apiRequest("POST", "/api/auth/demo");
-    setUser(await res.json());
+    const u = store.getUser("user-sandip")!;
+    setUser(u);
   };
 
   const loginGoogle = async (payload: Partial<User>) => {
-    const res = await apiRequest("POST", "/api/auth/google", payload);
-    setUser(await res.json());
+    const existing = payload.email ? store.getUserByEmail(payload.email) : undefined;
+    const u = existing || store.upsertUser({
+      email: payload.email || "google@user.com",
+      name: payload.name || "Google User",
+      avatar: payload.avatar || `https://api.dicebear.com/8.x/avataaars/svg?seed=${Date.now()}`,
+    });
+    setUser(u);
   };
 
   const logout = async () => {
-    await apiRequest("POST", "/api/auth/logout");
     setUser(null);
   };
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useStore, useIssue, useProject, useComments, useActivity, useLabels, useSprints, useOrgMembers, useUsers } from "@/lib/storeContext";
 import { useLocation } from "wouter";
 import { ArrowLeft, Pencil, Trash2, Send, Link2, Calendar, User2, Tag, Layers, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IssueTypeIcon, PriorityIcon, StatusIcon } from "@/components/IssueIcon";
-import { apiRequest } from "@/lib/queryClient";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS, formatRelative, cn } from "@/lib/utils";
 import type { Issue, Comment, Label, User, Project, Sprint, Activity } from "@shared/schema";
 import type { IssueStatus, IssuePriority, IssueType } from "@shared/schema";
@@ -20,20 +19,20 @@ import ReactMarkdown from "react-markdown";
 interface Props { issueId: string; projectId: string; orgId: string; }
 
 export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
-  const qc = useQueryClient();
+  const { store, refresh } = useStore();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [commentText, setCommentText] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
   const [desc, setDesc] = useState("");
 
-  const { data: issue, isLoading: issueLoading } = useQuery<Issue>({ queryKey: [`/api/issues/${issueId}`] });
-  const { data: project } = useQuery<Project>({ queryKey: [`/api/projects/${projectId}`] });
-  const { data: comments = [], isLoading: commentsLoading } = useQuery<any[]>({ queryKey: [`/api/issues/${issueId}/comments`] });
-  const { data: activity = [] } = useQuery<any[]>({ queryKey: [`/api/issues/${issueId}/activity`] });
-  const { data: labels = [] } = useQuery<Label[]>({ queryKey: [`/api/projects/${projectId}/labels`] });
-  const { data: sprints = [] } = useQuery<Sprint[]>({ queryKey: [`/api/projects/${projectId}/sprints`] });
-  const { data: members = [] } = useQuery<any[]>({ queryKey: [`/api/orgs/${orgId}/members`] });
+  const issue = useIssue(issueId);
+  const project = useProject(projectId);
+  const comments = useComments(issueId);
+  const activity = useActivity(issueId);
+  const labels = useLabels(projectId);
+  const sprints = useSprints(projectId);
+  const allUsers = useUsers();
 
   const updateMutation = useMutation({
     mutationFn: async (patch: Partial<Issue>) => {
@@ -65,21 +64,18 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
     },
   });
 
-  const deleteCommentMutation = useMutation({
-    mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/comments/${id}`); },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/issues/${issueId}/comments`] }),
-  });
+  const deleteComment = (id: string) => { store.deleteComment(id); refresh(); };
 
   const initials = (name?: string) => name?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 
-  if (issueLoading || !project) {
+  if (false || !project) {
     return <div className="flex-1 p-8 space-y-4">{Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>;
   }
   if (!issue) return <div className="flex-1 p-8 text-muted-foreground">Issue not found.</div>;
 
   const issueLabels = labels.filter(l => issue.labelIds.includes(l.id));
   const activeSprint = sprints.find(s => s.id === issue.sprintId);
-  const assignee = members.find((m: any) => m.userId === issue.assigneeId)?.user;
+  const assignee = allUsers.find(u => u.id === issue.assigneeId);
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
@@ -94,7 +90,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
         <Button
           variant="ghost" size="sm"
           className="h-8 text-xs text-destructive hover:bg-destructive/10"
-          onClick={() => deleteMutation.mutate()}
+          onClick={() => deleteIssue()}
           data-testid="button-delete-issue"
         >
           <Trash2 className="w-3.5 h-3.5 mr-1" />
@@ -138,7 +134,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
                   placeholder="Add a description (markdown supported)…"
                 />
                 <Button size="sm" className="h-8 text-xs" onClick={() => {
-                  updateMutation.mutate({ description: desc });
+                  updateIssue({ description: desc });
                   setEditingDesc(false);
                 }}>
                   Save
@@ -188,7 +184,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
                     <span className="text-xs text-muted-foreground ml-auto">{formatRelative(c.createdAt)}</span>
                     <button
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteCommentMutation.mutate(c.id)}
+                      onClick={() => deleteComment(c.id)}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -215,8 +211,8 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
                 />
                 <Button
                   size="sm" className="h-8 gap-1.5 text-xs"
-                  onClick={() => addCommentMutation.mutate(commentText)}
-                  disabled={!commentText.trim() || addCommentMutation.isPending}
+                  onClick={() => addComment(commentText)}
+                  disabled={!commentText.trim() || false}
                   data-testid="button-submit-comment"
                 >
                   <Send className="w-3 h-3" />
@@ -230,7 +226,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
         {/* Sidebar */}
         <div className="w-60 shrink-0 border-l border-border overflow-y-auto px-4 py-5 space-y-4">
           <DetailField label="Status" icon={<Layers className="w-3.5 h-3.5" />}>
-            <Select value={issue.status} onValueChange={v => updateMutation.mutate({ status: v as IssueStatus })}>
+            <Select value={issue.status} onValueChange={v => updateIssue({ status: v as IssueStatus })}>
               <SelectTrigger className="h-7 text-xs" data-testid="select-issue-status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {["todo","in_progress","in_review","done","cancelled"].map(s => (
@@ -241,7 +237,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
           </DetailField>
 
           <DetailField label="Priority" icon={<Flag className="w-3.5 h-3.5" />}>
-            <Select value={issue.priority} onValueChange={v => updateMutation.mutate({ priority: v as IssuePriority })}>
+            <Select value={issue.priority} onValueChange={v => updateIssue({ priority: v as IssuePriority })}>
               <SelectTrigger className="h-7 text-xs" data-testid="select-issue-priority"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {["urgent","high","medium","low","none"].map(p => (
@@ -252,7 +248,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
           </DetailField>
 
           <DetailField label="Assignee" icon={<User2 className="w-3.5 h-3.5" />}>
-            <Select value={issue.assigneeId || "__none"} onValueChange={v => updateMutation.mutate({ assigneeId: v === "__none" ? undefined : v })}>
+            <Select value={issue.assigneeId || "__none"} onValueChange={v => updateIssue({ assigneeId: v === "__none" ? undefined : v })}>
               <SelectTrigger className="h-7 text-xs" data-testid="select-issue-assignee"><SelectValue placeholder="Unassigned" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none">Unassigned</SelectItem>
@@ -264,7 +260,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
           </DetailField>
 
           <DetailField label="Sprint" icon={<Calendar className="w-3.5 h-3.5" />}>
-            <Select value={issue.sprintId || "__backlog"} onValueChange={v => updateMutation.mutate({ sprintId: v === "__backlog" ? undefined : v })}>
+            <Select value={issue.sprintId || "__backlog"} onValueChange={v => updateIssue({ sprintId: v === "__backlog" ? undefined : v })}>
               <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Backlog" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__backlog">Backlog</SelectItem>

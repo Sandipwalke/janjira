@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useOrg, useProjects } from "@/lib/storeContext";
 import {
   LayoutDashboard, Layers, List, GitBranch, Map,
   Settings, Users, Plus, ChevronDown, LogOut, Moon, Sun,
@@ -44,8 +44,8 @@ export default function AppSidebar({ orgId, projectId, theme, onToggleTheme }: P
   const [location] = useLocation();
   const [projectsOpen, setProjectsOpen] = useState(true);
 
-  const { data: org } = useQuery<Organization>({ queryKey: [`/api/orgs/${orgId}`] });
-  const { data: projects = [] } = useQuery<Project[]>({ queryKey: [`/api/orgs/${orgId}/projects`] });
+  const org = useOrg(orgId);
+  const projects = useProjects(orgId);
 
   const initials = (name?: string) => name?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@/lib/storeContext";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { apiRequest } from "@/lib/queryClient";
 import { insertProjectSchema } from "@shared/schema";
 import { PROJECT_COLORS, cn } from "@/lib/utils";
 import type { Project } from "@shared/schema";
@@ -20,7 +19,7 @@ interface Props { orgId: string; }
 
 export default function NewProjectPage({ orgId }: Props) {
   const [, setLocation] = useLocation();
-  const qc = useQueryClient();
+  const { store, refresh } = useStore();
   const { toast } = useToast();
   const [selectedColor, setSelectedColor] = useState(PROJECT_COLORS[0]);
 
@@ -29,18 +28,16 @@ export default function NewProjectPage({ orgId }: Props) {
     defaultValues: { name: "", key: "", description: "", color: PROJECT_COLORS[0] },
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", `/api/orgs/${orgId}/projects`, { ...data, color: selectedColor });
-      return res.json() as Promise<Project>;
-    },
-    onSuccess: (project) => {
-      qc.invalidateQueries({ queryKey: [`/api/orgs/${orgId}/projects`] });
-      toast({ title: "Project created!", description: project.name });
-      setLocation(`/org/${orgId}/project/${project.id}/board`);
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+  const [creating, setCreating] = useState(false);
+  const createProject = (data: any) => {
+    setCreating(true);
+    const proj = store.createProject({ ...data, color: selectedColor, orgId });
+    store.addOrgMember(orgId, user?.id || "user-sandip", "owner");
+    refresh();
+    toast({ title: "Project created", description: proj.name });
+    setLocation(`/org/${orgId}/project/${proj.id}/board`);
+    setCreating(false);
+  };
 
   // Auto-generate key from name
   const onNameChange = (name: string) => {
@@ -138,8 +135,8 @@ export default function NewProjectPage({ orgId }: Props) {
 
                 <div className="flex gap-2 pt-2">
                   <Button type="button" variant="outline" className="flex-1" onClick={() => history.back()}>Cancel</Button>
-                  <Button type="submit" className="flex-1" disabled={createMutation.isPending} data-testid="button-save-project">
-                    {createMutation.isPending ? "Creating…" : "Create Project"}
+                  <Button type="submit" className="flex-1" disabled={creating} data-testid="button-save-project">
+                    {creating ? "Creating…" : "Create Project"}
                   </Button>
                 </div>
               </form>

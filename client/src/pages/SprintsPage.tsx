@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useStore, useProject, useSprints, useIssues } from "@/lib/storeContext";
 import { Plus, Play, CheckCircle, Clock, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiRequest } from "@/lib/queryClient";
 import { formatDate, cn } from "@/lib/utils";
 import type { Sprint, Issue, Project } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -18,35 +17,20 @@ import { useToast } from "@/hooks/use-toast";
 interface Props { projectId: string; orgId: string; }
 
 export default function SprintsPage({ projectId, orgId }: Props) {
-  const qc = useQueryClient();
+  const { store, refresh } = useStore();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ name: "", goal: "", startDate: "", endDate: "" });
 
-  const { data: project } = useQuery<Project>({ queryKey: [`/api/projects/${projectId}`] });
-  const { data: sprints = [], isLoading } = useQuery<Sprint[]>({ queryKey: [`/api/projects/${projectId}/sprints`] });
-  const { data: issues = [] } = useQuery<Issue[]>({ queryKey: [`/api/projects/${projectId}/issues`] });
+  const project = useProject(projectId);
+  const sprints = useSprints(projectId);
+  const issues = useIssues(projectId);
 
-  const createMutation = useMutation({
-    mutationFn: async (data: typeof form) => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/sprints`, { ...data, orgId });
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [`/api/projects/${projectId}/sprints`] });
-      setCreateOpen(false);
-      setForm({ name: "", goal: "", startDate: "", endDate: "" });
-      toast({ title: "Sprint created" });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await apiRequest("PATCH", `/api/sprints/${id}`, { status });
-      return res.json();
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/projects/${projectId}/sprints`] }),
-  });
+  const createSprint = (data: typeof form) => {
+    store.createSprint({ ...data, projectId, orgId, status: "planning" });
+    refresh(); setCreateOpen(false); setForm({ name: "", goal: "", startDate: "", endDate: "" }); toast({ title: "Sprint created" });
+  };
+  const updateSprint = (id: string, status: string) => { store.updateSprint(id, { status: status as any }); refresh(); };
 
   const getSprintIssues = (sprintId: string) => issues.filter(i => i.sprintId === sprintId);
 
@@ -66,9 +50,7 @@ export default function SprintsPage({ projectId, orgId }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        {isLoading ? (
-          <div className="space-y-3">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
-        ) : sorted.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <Clock className="w-12 h-12 text-muted-foreground/30 mb-4" />
             <h3 className="text-base font-semibold mb-2">No sprints yet</h3>
@@ -107,13 +89,13 @@ export default function SprintsPage({ projectId, orgId }: Props) {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {sprint.status === "planning" && (
-                          <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => updateMutation.mutate({ id: sprint.id, status: "active" })}>
+                          <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => updateSprint(sprint.id, "active")}>
                             <Play className="w-3.5 h-3.5" />
                             Start Sprint
                           </Button>
                         )}
                         {sprint.status === "active" && (
-                          <Button size="sm" variant="outline" className="h-8 text-xs gap-1 border-green-500 text-green-600" onClick={() => updateMutation.mutate({ id: sprint.id, status: "completed" })}>
+                          <Button size="sm" variant="outline" className="h-8 text-xs gap-1 border-green-500 text-green-600" onClick={() => updateSprint(sprint.id, "completed")}>
                             <CheckCircle className="w-3.5 h-3.5" />
                             Complete
                           </Button>
@@ -186,7 +168,7 @@ export default function SprintsPage({ projectId, orgId }: Props) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMutation.mutate(form)} disabled={!form.name || createMutation.isPending} data-testid="button-save-sprint">
+            <Button onClick={() => createSprint(form)} disabled={!form.name} data-testid="button-save-sprint">
               Create Sprint
             </Button>
           </DialogFooter>

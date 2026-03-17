@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useStore, useOrg, useOrgMembers, useOrgInvites, useUsers } from "@/lib/storeContext";
 import { Plus, Mail, Crown, Shield, User, Eye, Trash2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { apiRequest } from "@/lib/queryClient";
 import { formatRelative } from "@/lib/utils";
 import type { MemberRole } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -31,40 +30,28 @@ const ROLE_COLORS: Record<MemberRole, string> = {
 };
 
 export default function MembersPage({ orgId }: Props) {
-  const qc = useQueryClient();
+  const { store, refresh } = useStore();
   const { toast } = useToast();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<MemberRole>("member");
   const [copied, setCopied] = useState<string | null>(null);
 
-  const { data: members = [], isLoading } = useQuery<any[]>({ queryKey: [`/api/orgs/${orgId}/members`] });
-  const { data: invites = [] } = useQuery<any[]>({ queryKey: [`/api/orgs/${orgId}/invites`] });
+  const members = useOrgMembers(orgId);
+  const invites = useOrgInvites(orgId);
+  const allUsers = useUsers();
+  const org = useOrg(orgId);
 
   const initials = (name?: string) => name?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 
-  const inviteMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/orgs/${orgId}/invites`, { email: inviteEmail, role: inviteRole });
-      return res.json();
-    },
-    onSuccess: (invite) => {
-      qc.invalidateQueries({ queryKey: [`/api/orgs/${orgId}/invites`] });
-      toast({ title: "Invite created", description: `Invite sent to ${inviteEmail}` });
-      setInviteEmail("");
-      setInviteOpen(false);
-    },
-  });
-
-  const removeInviteMutation = useMutation({
-    mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/orgs/${orgId}/invites/${id}`); },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/orgs/${orgId}/invites`] }),
-  });
-
-  const removeMemberMutation = useMutation({
-    mutationFn: async (userId: string) => { await apiRequest("DELETE", `/api/orgs/${orgId}/members/${userId}`); },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/orgs/${orgId}/members`] }),
-  });
+  const createInvite = () => {
+    if (!inviteEmail.trim()) return;
+    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    store.createInvite({ orgId, email: inviteEmail, role: inviteRole as any, token, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now()+7*86400000).toISOString() });
+    refresh(); setInviteEmail(""); toast({ title: "Invite created", description: `Token: ${token}` });
+  };
+  const removeInvite = (id: string) => { store.deleteInvite(id); refresh(); };
+  const removeMember = (userId: string) => { store.removeOrgMember(orgId, userId); refresh(); };
 
   const copyInviteLink = (token: string) => {
     const link = `${window.location.origin}/#/invite/${token}`;
@@ -152,7 +139,7 @@ export default function MembersPage({ orgId }: Props) {
                     <Button
                       variant="ghost" size="icon"
                       className="w-7 h-7 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeInviteMutation.mutate(invite.id)}
+                      onClick={() => removeInvite(invite.id)}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
@@ -204,7 +191,7 @@ export default function MembersPage({ orgId }: Props) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
-            <Button onClick={() => inviteMutation.mutate()} disabled={!inviteEmail || inviteMutation.isPending} data-testid="button-send-invite">
+            <Button onClick={() => createInvite()} disabled={!inviteEmail || false} data-testid="button-send-invite">
               Send Invite
             </Button>
           </DialogFooter>

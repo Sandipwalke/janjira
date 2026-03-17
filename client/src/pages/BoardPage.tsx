@@ -1,5 +1,4 @@
-import { useState, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent, type DragOverEvent,
@@ -7,19 +6,19 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Filter, SlidersHorizontal, Search, ChevronDown } from "lucide-react";
+import { Plus, Search, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import IssueCard from "@/components/IssueCard";
 import CreateIssueDialog from "@/components/CreateIssueDialog";
-import { apiRequest } from "@/lib/queryClient";
 import { STATUS_LABELS, STATUS_ORDER, cn } from "@/lib/utils";
 import { StatusIcon } from "@/components/IssueIcon";
-import type { Issue, Project, Sprint } from "@shared/schema";
+import type { Issue, Project } from "@shared/schema";
 import type { IssueStatus } from "@shared/schema";
 import { useLocation } from "wouter";
+import { useStore, useProject, useIssues, useSprints } from "@/lib/storeContext";
 
 interface Props { projectId: string; orgId: string; }
 
@@ -42,40 +41,24 @@ function SortableIssueCard({ issue, project, orgId, onOpen }: { issue: Issue; pr
 }
 
 export default function BoardPage({ projectId, orgId }: Props) {
-  const qc = useQueryClient();
+  const { store, refresh } = useStore();
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [createStatus, setCreateStatus] = useState<IssueStatus | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
-  const { data: project } = useQuery<Project>({ queryKey: [`/api/projects/${projectId}`] });
-  const { data: issues = [], isLoading } = useQuery<Issue[]>({ queryKey: [`/api/projects/${projectId}/issues`] });
-  const { data: sprints = [] } = useQuery<Sprint[]>({ queryKey: [`/api/projects/${projectId}/sprints`] });
+  const project = useProject(projectId);
+  const issues = useIssues(projectId);
+  const sprints = useSprints(projectId);
   const activeSprint = sprints.find(s => s.status === "active");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, status, order }: { id: string; status?: IssueStatus; order?: number }) => {
-      const res = await apiRequest("PATCH", `/api/issues/${id}`, { status, order });
-      return res.json();
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/projects/${projectId}/issues`] }),
-  });
-
-  const bulkOrderMutation = useMutation({
-    mutationFn: async (updates: { id: string; order: number; status?: IssueStatus }[]) => {
-      await apiRequest("POST", "/api/issues/bulk-order", { updates });
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/projects/${projectId}/issues`] }),
-  });
 
   const filtered = issues.filter(i =>
     !search || i.title.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Only show sprint issues on board, plus backlog as separate column
   const boardIssues = activeSprint
     ? filtered.filter(i => i.sprintId === activeSprint.id)
     : filtered;
@@ -97,13 +80,13 @@ export default function BoardPage({ projectId, orgId }: Props) {
     const draggedIssue = issues.find(i => i.id === active.id);
     if (!draggedIssue) return;
 
-    // Determine target status — over could be a column or an issue
     const overIssue = issues.find(i => i.id === over.id);
     const targetStatus = overIssue ? overIssue.status : (over.id as IssueStatus);
 
     if (STATUS_ORDER.includes(targetStatus as IssueStatus)) {
       if (draggedIssue.status !== targetStatus) {
-        updateMutation.mutate({ id: draggedIssue.id, status: targetStatus as IssueStatus });
+        store.updateIssue(draggedIssue.id, { status: targetStatus as IssueStatus });
+        refresh();
       }
     }
   };
@@ -112,7 +95,6 @@ export default function BoardPage({ projectId, orgId }: Props) {
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
-      {/* Toolbar */}
       <div className="flex items-center gap-3 px-6 py-3 border-b border-border shrink-0">
         <div className="flex-1 flex items-center gap-2">
           <h2 className="text-base font-semibold" style={{ fontFamily: "var(--font-display)" }}>Board</h2>
@@ -144,7 +126,6 @@ export default function BoardPage({ projectId, orgId }: Props) {
         </Button>
       </div>
 
-      {/* Columns */}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -165,7 +146,6 @@ export default function BoardPage({ projectId, orgId }: Props) {
                 )}
                 data-testid={`column-${status}`}
               >
-                {/* Column header */}
                 <div className="flex items-center gap-2 mb-3">
                   <StatusIcon status={status} />
                   <span className="text-sm font-medium text-foreground">{STATUS_LABELS[status]}</span>
@@ -182,12 +162,9 @@ export default function BoardPage({ projectId, orgId }: Props) {
                   </Button>
                 </div>
 
-                {/* Cards */}
                 <SortableContext items={colIssues.map(i => i.id)} strategy={verticalListSortingStrategy}>
                   <div className="flex flex-col gap-2 min-h-[60px]">
-                    {isLoading ? (
-                      Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)
-                    ) : colIssues.length === 0 ? (
+                    {colIssues.length === 0 ? (
                       <div className="flex items-center justify-center h-16 text-xs text-muted-foreground/50 rounded-lg border border-dashed border-current/20">
                         No issues
                       </div>

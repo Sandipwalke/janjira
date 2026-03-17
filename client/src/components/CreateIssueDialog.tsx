@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiRequest } from "@/lib/queryClient";
 import { insertIssueSchema } from "@shared/schema";
-import type { Issue, Sprint, User, Label } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useStore, useSprints, useLabels, useOrgMembers, useUsers } from "@/lib/storeContext";
+import { useAuth } from "@/lib/auth";
 
 interface Props {
   open: boolean;
@@ -30,12 +29,13 @@ const schema = insertIssueSchema.extend({
 });
 
 export default function CreateIssueDialog({ open, onClose, projectId, orgId, defaultStatus, defaultSprintId }: Props) {
-  const qc = useQueryClient();
+  const { store, refresh } = useStore();
+  const { user } = useAuth();
   const { toast } = useToast();
 
-  const { data: sprints = [] } = useQuery<Sprint[]>({ queryKey: [`/api/projects/${projectId}/sprints`] });
-  const { data: labels = [] } = useQuery<Label[]>({ queryKey: [`/api/projects/${projectId}/labels`] });
-  const { data: members = [] } = useQuery<any[]>({ queryKey: [`/api/orgs/${orgId}/members`] });
+  const sprints = useSprints(projectId);
+  const labels = useLabels(projectId);
+  const allUsers = useUsers();
 
   const form = useForm({
     resolver: zodResolver(schema),
@@ -51,19 +51,22 @@ export default function CreateIssueDialog({ open, onClose, projectId, orgId, def
     },
   });
 
-  const mutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/issues`, data);
-      return res.json();
-    },
-    onSuccess: (issue: Issue) => {
-      qc.invalidateQueries({ queryKey: [`/api/projects/${projectId}/issues`] });
-      toast({ title: "Issue created", description: issue.title });
-      form.reset();
-      onClose();
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const onSubmit = (data: any) => {
+    setSubmitting(true);
+    const issue = store.createIssue({
+      ...data,
+      projectId,
+      orgId,
+      reporterId: user?.id || "user-sandip",
+    });
+    refresh();
+    toast({ title: "Issue created", description: issue.title });
+    form.reset();
+    setSubmitting(false);
+    onClose();
+  };
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
@@ -72,7 +75,7 @@ export default function CreateIssueDialog({ open, onClose, projectId, orgId, def
           <DialogTitle>Create Issue</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(d => mutation.mutate(d))} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField control={form.control} name="title" render={({ field }) => (
               <FormItem>
                 <FormControl>
@@ -140,8 +143,8 @@ export default function CreateIssueDialog({ open, onClose, projectId, orgId, def
                     <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none">Unassigned</SelectItem>
-                      {members.map((m: any) => (
-                        <SelectItem key={m.userId} value={m.userId}>{m.user?.name}</SelectItem>
+                      {allUsers.map(u => (
+                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -168,8 +171,8 @@ export default function CreateIssueDialog({ open, onClose, projectId, orgId, def
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-              <Button type="submit" disabled={mutation.isPending} data-testid="button-create-issue">
-                {mutation.isPending ? "Creating…" : "Create Issue"}
+              <Button type="submit" disabled={submitting} data-testid="button-create-issue">
+                {submitting ? "Creating…" : "Create Issue"}
               </Button>
             </DialogFooter>
           </form>

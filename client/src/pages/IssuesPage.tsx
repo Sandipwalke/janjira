@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useStore, useProject, useIssues, useLabels, useOrgMembers, useUsers } from "@/lib/storeContext";
 import { Plus, Search, Filter, ArrowUpDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IssueTypeIcon, PriorityIcon, StatusIcon } from "@/components/IssueIcon";
 import CreateIssueDialog from "@/components/CreateIssueDialog";
-import { apiRequest } from "@/lib/queryClient";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/lib/utils";
 import type { Issue, Project, Label } from "@shared/schema";
 import type { IssueStatus, IssuePriority, IssueType } from "@shared/schema";
@@ -18,7 +17,7 @@ import { formatRelative } from "@/lib/utils";
 interface Props { projectId: string; orgId: string; }
 
 export default function IssuesPage({ projectId, orgId }: Props) {
-  const qc = useQueryClient();
+  const { store, refresh } = useStore();
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -26,15 +25,12 @@ export default function IssuesPage({ projectId, orgId }: Props) {
   const [filterType, setFilterType] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data: project } = useQuery<Project>({ queryKey: [`/api/projects/${projectId}`] });
-  const { data: issues = [], isLoading } = useQuery<Issue[]>({ queryKey: [`/api/projects/${projectId}/issues`] });
-  const { data: labels = [] } = useQuery<Label[]>({ queryKey: [`/api/projects/${projectId}/labels`] });
-  const { data: members = [] } = useQuery<any[]>({ queryKey: [`/api/orgs/${orgId}/members`] });
+  const project = useProject(projectId);
+  const issues = useIssues(projectId);
+  const labels = useLabels(projectId);
+  const allUsers = useUsers();
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/issues/${id}`); },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/projects/${projectId}/issues`] }),
-  });
+  const deleteIssue = (id: string) => { store.deleteIssue(id); refresh(); };
 
   const filtered = issues.filter(i => {
     if (filterStatus !== "all" && i.status !== filterStatus) return false;
@@ -119,7 +115,7 @@ export default function IssuesPage({ projectId, orgId }: Props) {
         ) : (
           <div className="divide-y divide-border">
             {filtered.map(issue => {
-              const assignee = members.find((m: any) => m.userId === issue.assigneeId)?.user;
+              const assignee = allUsers.find(u => u.id === issue.assigneeId);
               const issueLabels = labels.filter(l => issue.labelIds.includes(l.id));
               return (
                 <div
@@ -155,7 +151,7 @@ export default function IssuesPage({ projectId, orgId }: Props) {
                   <span className="w-24 shrink-0 text-xs text-muted-foreground">{formatRelative(issue.updatedAt)}</span>
                   <button
                     className="w-8 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                    onClick={e => { e.stopPropagation(); deleteMutation.mutate(issue.id); }}
+                    onClick={e => { e.stopPropagation(); deleteIssue(issue.id); }}
                     data-testid={`button-delete-issue-${issue.id}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />

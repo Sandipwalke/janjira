@@ -1,20 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { TrendingUp, CheckCircle2, Clock, AlertCircle, Plus, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { formatRelative } from "@/lib/utils";
-import type { Project, Issue, Organization } from "@shared/schema";
+import type { Project } from "@shared/schema";
+import { useOrg, useProjects, useProjectStats } from "@/lib/storeContext";
 
 interface Props { orgId: string; }
 
 export default function DashboardPage({ orgId }: Props) {
-  const { data: org } = useQuery<Organization>({ queryKey: [`/api/orgs/${orgId}`] });
-  const { data: projects = [] } = useQuery<Project[]>({ queryKey: [`/api/orgs/${orgId}/projects`] });
+  const org = useOrg(orgId);
+  const projects = useProjects(orgId);
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
@@ -58,23 +56,18 @@ export default function DashboardPage({ orgId }: Props) {
 }
 
 function ProjectCard({ project, orgId }: { project: Project; orgId: string }) {
-  const { data: stats, isLoading } = useQuery<any>({ queryKey: [`/api/projects/${project.id}/stats`] });
-
-  const total = stats?.total || 0;
-  const done = stats?.byStatus?.done || 0;
+  const stats = useProjectStats(project.id);
+  const total = stats.total || 0;
+  const done = stats.done || 0;
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+  const sprintPct = stats.sprintTotal > 0 ? Math.round((stats.sprintDone / stats.sprintTotal) * 100) : 0;
 
-  const sprintProgress = stats?.sprintProgress;
-  const sprintDone = sprintProgress?.done || 0;
-  const sprintTotal = sprintProgress?.total || 0;
-  const sprintPct = sprintTotal > 0 ? Math.round((sprintDone / sprintTotal) * 100) : 0;
-
-  const statusData = stats?.byStatus ? [
-    { name: "To Do", value: stats.byStatus.todo || 0, color: "#6B7280" },
-    { name: "In Progress", value: stats.byStatus.in_progress || 0, color: "#3B82F6" },
-    { name: "In Review", value: stats.byStatus.in_review || 0, color: "#8B5CF6" },
-    { name: "Done", value: stats.byStatus.done || 0, color: "#10B981" },
-  ].filter(d => d.value > 0) : [];
+  const statusData = [
+    { name: "To Do", value: stats.todo || 0, color: "#6B7280" },
+    { name: "In Progress", value: stats.inProgress || 0, color: "#3B82F6" },
+    { name: "In Review", value: stats.inReview || 0, color: "#8B5CF6" },
+    { name: "Done", value: stats.done || 0, color: "#10B981" },
+  ].filter(d => d.value > 0);
 
   return (
     <Card className="overflow-hidden" data-testid={`project-card-${project.id}`}>
@@ -100,19 +93,13 @@ function ProjectCard({ project, orgId }: { project: Project; orgId: string }) {
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="space-y-2"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" /></div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Stat pills */}
-            <StatBox icon={<CheckCircle2 className="w-4 h-4 text-green-500" />} label="Done" value={done} total={total} />
-            <StatBox icon={<Clock className="w-4 h-4 text-blue-500" />} label="In Progress" value={stats?.byStatus?.in_progress || 0} total={total} />
-            <StatBox icon={<AlertCircle className="w-4 h-4 text-red-500" />} label="Bugs" value={stats?.byType?.bug || 0} total={total} />
-            <StatBox icon={<TrendingUp className="w-4 h-4 text-purple-500" />} label="Epics" value={stats?.byType?.epic || 0} total={total} />
-          </div>
-        )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatBox icon={<CheckCircle2 className="w-4 h-4 text-green-500" />} label="Done" value={done} />
+          <StatBox icon={<Clock className="w-4 h-4 text-blue-500" />} label="In Progress" value={stats.inProgress} />
+          <StatBox icon={<AlertCircle className="w-4 h-4 text-red-500" />} label="In Review" value={stats.inReview} />
+          <StatBox icon={<TrendingUp className="w-4 h-4 text-purple-500" />} label="Total Issues" value={total} />
+        </div>
 
-        {/* Overall progress */}
         <div className="mt-4">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-muted-foreground">Overall Progress</span>
@@ -121,31 +108,26 @@ function ProjectCard({ project, orgId }: { project: Project; orgId: string }) {
           <Progress value={progress} className="h-1.5" />
         </div>
 
-        {/* Sprint progress */}
-        {sprintProgress && (
+        {stats.activeSprint && stats.sprintTotal > 0 && (
           <div className="mt-3 p-3 rounded-lg bg-muted/50 border border-border">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium">Active Sprint</span>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{stats?.activeSprint?.name}</Badge>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{stats.activeSprint.name}</Badge>
               </div>
-              <span className="text-xs text-muted-foreground">{sprintDone}/{sprintTotal} done</span>
+              <span className="text-xs text-muted-foreground">{stats.sprintDone}/{stats.sprintTotal} done</span>
             </div>
             <Progress value={sprintPct} className="h-1" />
           </div>
         )}
 
-        {/* Mini donut */}
         {statusData.length > 0 && (
           <div className="mt-3 h-20">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={statusData} barSize={20}>
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis hide />
-                <Tooltip
-                  contentStyle={{ fontSize: 11, borderRadius: 8 }}
-                  cursor={{ fill: "hsl(var(--muted))" }}
-                />
+                <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted))" }} />
                 <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                   {statusData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Bar>
@@ -158,7 +140,7 @@ function ProjectCard({ project, orgId }: { project: Project; orgId: string }) {
   );
 }
 
-function StatBox({ icon, label, value, total }: { icon: React.ReactNode; label: string; value: number; total: number }) {
+function StatBox({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
     <div className="flex items-center gap-2.5 p-3 rounded-lg bg-muted/50 border border-border">
       {icon}

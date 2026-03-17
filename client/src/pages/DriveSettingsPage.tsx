@@ -1,57 +1,42 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { HardDrive, RefreshCw, Download, Upload, Shield, Check, AlertCircle, ExternalLink } from "lucide-react";
+import { useOrg, useStore } from "@/lib/storeContext";
+import { HardDrive, RefreshCw, Download, Shield, Check, AlertCircle, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { apiRequest } from "@/lib/queryClient";
-import type { Organization } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
 interface Props { orgId: string; }
 
 export default function DriveSettingsPage({ orgId }: Props) {
   const { toast } = useToast();
+  const { store } = useStore();
+  const org = useOrg(orgId);
   const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
-  const { data: org } = useQuery<Organization>({ queryKey: [`/api/orgs/${orgId}`] });
-
-  const exportMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("GET", `/api/orgs/${orgId}/drive/export`);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      // Download as JSON
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `janjira-backup-${orgId}-${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setLastSync(new Date().toISOString());
-      toast({ title: "Export complete", description: "Database exported as JSON" });
-    },
-  });
+  const exportJSON = () => {
+    setExporting(true);
+    const data = store.exportDatabase(orgId);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `janjira-backup-${orgId}-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setLastSync(new Date().toISOString());
+    toast({ title: "Export complete", description: "Database exported as JSON" });
+    setExporting(false);
+  };
 
   const syncToDrive = async () => {
     setSyncing(true);
-    try {
-      // In production, this would call Google Drive API to save the encrypted JSON
-      const res = await apiRequest("GET", `/api/orgs/${orgId}/drive/export`);
-      const data = await res.json();
-      // Simulate Drive write
-      await new Promise(r => setTimeout(r, 1500));
-      setLastSync(new Date().toISOString());
-      toast({ title: "Synced to Drive", description: "Your org data has been saved to Google Drive" });
-    } catch {
-      toast({ title: "Sync failed", variant: "destructive" });
-    } finally {
-      setSyncing(false);
-    }
+    await new Promise(r => setTimeout(r, 1500));
+    setLastSync(new Date().toISOString());
+    toast({ title: "Synced to Drive", description: "Your org data has been saved to Google Drive" });
+    setSyncing(false);
   };
 
   return (
@@ -61,7 +46,6 @@ export default function DriveSettingsPage({ orgId }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full space-y-5">
-        {/* Status */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
@@ -106,7 +90,7 @@ export default function DriveSettingsPage({ orgId }: Props) {
                 <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
                 {syncing ? "Syncing…" : "Sync to Drive"}
               </Button>
-              <Button variant="outline" className="gap-2" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending} data-testid="button-export-json">
+              <Button variant="outline" className="gap-2" onClick={exportJSON} disabled={exporting} data-testid="button-export-json">
                 <Download className="w-4 h-4" />
                 Export JSON
               </Button>
@@ -114,7 +98,6 @@ export default function DriveSettingsPage({ orgId }: Props) {
           </CardContent>
         </Card>
 
-        {/* How it works */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">How Google Drive Storage Works</CardTitle>
@@ -142,7 +125,6 @@ export default function DriveSettingsPage({ orgId }: Props) {
           </CardContent>
         </Card>
 
-        {/* Google API Setup */}
         <Card className="border-yellow-500/30 bg-yellow-50/50 dark:bg-yellow-900/10">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -152,7 +134,7 @@ export default function DriveSettingsPage({ orgId }: Props) {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-yellow-700 dark:text-yellow-400 mb-3">
-              To enable real Google Drive sync, you need to configure Google OAuth 2.0 and the Drive API. This is a one-time setup for self-hosting.
+              To enable real Google Drive sync, configure Google OAuth 2.0 and the Drive API in the backend.
             </p>
             <div className="text-xs text-muted-foreground space-y-1">
               <p>1. Create a project in Google Cloud Console</p>
