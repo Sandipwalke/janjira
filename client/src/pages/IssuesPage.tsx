@@ -101,11 +101,7 @@ export default function IssuesPage({ projectId, orgId }: Props) {
           <span className="w-8" />
         </div>
 
-        {isLoading ? (
-          <div className="p-4 space-y-2">
-            {Array(8).fill(0).map((_, i) => <Skeleton key={i} className="h-10" />)}
-          </div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <p className="text-muted-foreground text-sm">No issues match your filters</p>
             <Button variant="link" onClick={() => { setFilterStatus("all"); setFilterPriority("all"); setFilterType("all"); setSearch(""); }}>

@@ -97,7 +97,7 @@ export default function MembersPage({ orgId }: Props) {
                     <Button
                       variant="ghost" size="icon"
                       className="w-7 h-7 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeMemberMutation.mutate(m.userId)}
+                      onClick={() => removeMember(m.userId)}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>

@@ -33,42 +33,25 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
   const labels = useLabels(projectId);
   const sprints = useSprints(projectId);
   const allUsers = useUsers();
+  const members = useOrgMembers(orgId);
 
-  const updateMutation = useMutation({
-    mutationFn: async (patch: Partial<Issue>) => {
-      const res = await apiRequest("PATCH", `/api/issues/${issueId}`, patch);
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [`/api/issues/${issueId}`] });
-      qc.invalidateQueries({ queryKey: [`/api/projects/${projectId}/issues`] });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => { await apiRequest("DELETE", `/api/issues/${issueId}`); },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [`/api/projects/${projectId}/issues`] });
-      setLocation(`/org/${orgId}/project/${projectId}/issues`);
-    },
-  });
-
-  const addCommentMutation = useMutation({
-    mutationFn: async (body: string) => {
-      const res = await apiRequest("POST", `/api/issues/${issueId}/comments`, { body });
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [`/api/issues/${issueId}/comments`] });
-      setCommentText("");
-    },
-  });
-
+  const updateIssue = (patch: Partial<Issue>) => { store.updateIssue(issueId, patch); refresh(); };
+  const deleteIssue = () => {
+    store.deleteIssue(issueId);
+    refresh();
+    setLocation(`/org/${orgId}/project/${projectId}/issues`);
+  };
+  const addComment = (body: string) => {
+    if (!body.trim()) return;
+    store.createComment({ issueId, authorId: "user-sandip", body });
+    refresh();
+    setCommentText("");
+  };
   const deleteComment = (id: string) => { store.deleteComment(id); refresh(); };
 
   const initials = (name?: string) => name?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 
-  if (false || !project) {
+  if (!project) {
     return <div className="flex-1 p-8 space-y-4">{Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>;
   }
   if (!issue) return <div className="flex-1 p-8 text-muted-foreground">Issue not found.</div>;
@@ -171,7 +154,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
             </div>
 
             {/* Comments */}
-            {commentsLoading ? <Skeleton className="h-16" /> : comments.map((c: any) => (
+            {comments.map((c: any) => (
               <div key={c.id} className="flex gap-3 mb-4 group" data-testid={`comment-${c.id}`}>
                 <Avatar className="w-7 h-7 shrink-0">
                   <AvatarImage src={c.author?.avatar} />
@@ -212,7 +195,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
                 <Button
                   size="sm" className="h-8 gap-1.5 text-xs"
                   onClick={() => addComment(commentText)}
-                  disabled={!commentText.trim() || false}
+                  disabled={!commentText.trim()}
                   data-testid="button-submit-comment"
                 >
                   <Send className="w-3 h-3" />
@@ -252,8 +235,8 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
               <SelectTrigger className="h-7 text-xs" data-testid="select-issue-assignee"><SelectValue placeholder="Unassigned" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none">Unassigned</SelectItem>
-                {members.map((m: any) => (
-                  <SelectItem key={m.userId} value={m.userId}>{m.user?.name}</SelectItem>
+                {allUsers.map(u => (
+                  <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

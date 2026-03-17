@@ -19,6 +19,12 @@ import RoadmapPage from "@/pages/RoadmapPage";
 import MembersPage from "@/pages/MembersPage";
 import DriveSettingsPage from "@/pages/DriveSettingsPage";
 import NewProjectPage from "@/pages/NewProjectPage";
+import ReportsPage from "@/pages/ReportsPage";
+import TimelinePage from "@/pages/TimelinePage";
+import CalendarPage from "@/pages/CalendarPage";
+import LabelsPage from "@/pages/LabelsPage";
+import ProjectSettingsPage from "@/pages/ProjectSettingsPage";
+import OrgSettingsPage from "@/pages/OrgSettingsPage";
 import NotFound from "@/pages/not-found";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -119,7 +125,7 @@ function AppRouter() {
             {(p) => <DriveSettingsPage orgId={p.orgId} />}
           </Route>
           <Route path="/org/:orgId/settings">
-            {(p) => <DriveSettingsPage orgId={p.orgId} />}
+            {(p) => <OrgSettingsPage orgId={p.orgId} />}
           </Route>
           <Route path="/org/:orgId/new-project">
             {(p) => <NewProjectPage orgId={p.orgId} />}
@@ -140,6 +146,21 @@ function AppRouter() {
           </Route>
           <Route path="/org/:orgId/project/:projectId/roadmap">
             {(p) => <RoadmapPage projectId={p.projectId} orgId={p.orgId} />}
+          </Route>
+          <Route path="/org/:orgId/project/:projectId/timeline">
+            {(p) => <TimelinePage projectId={p.projectId} orgId={p.orgId} />}
+          </Route>
+          <Route path="/org/:orgId/project/:projectId/calendar">
+            {(p) => <CalendarPage projectId={p.projectId} orgId={p.orgId} />}
+          </Route>
+          <Route path="/org/:orgId/project/:projectId/reports">
+            {(p) => <ReportsPage projectId={p.projectId} orgId={p.orgId} />}
+          </Route>
+          <Route path="/org/:orgId/project/:projectId/labels">
+            {(p) => <LabelsPage projectId={p.projectId} orgId={p.orgId} />}
+          </Route>
+          <Route path="/org/:orgId/project/:projectId/settings">
+            {(p) => <ProjectSettingsPage projectId={p.projectId} orgId={p.orgId} />}
           </Route>
           <Route path="/org/:orgId/project/:projectId/issue/:issueId">
             {(p) => <IssueDetailPage issueId={p.issueId} projectId={p.projectId} orgId={p.orgId} />}

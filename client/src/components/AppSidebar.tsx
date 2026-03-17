@@ -3,7 +3,8 @@ import { useOrg, useProjects } from "@/lib/storeContext";
 import {
   LayoutDashboard, Layers, List, GitBranch, Map,
   Settings, Users, Plus, ChevronDown, LogOut, Moon, Sun,
-  Inbox, Zap, FolderOpen, HardDrive
+  Inbox, Zap, FolderOpen, HardDrive, BarChart2, Calendar,
+  Tag, Clock, Sliders
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -30,6 +31,11 @@ const NAV_ITEMS = (orgId: string, projectId: string) => [
   { label: "Issues", href: `/org/${orgId}/project/${projectId}/issues`, icon: Inbox },
   { label: "Sprints", href: `/org/${orgId}/project/${projectId}/sprints`, icon: GitBranch },
   { label: "Roadmap", href: `/org/${orgId}/project/${projectId}/roadmap`, icon: Map },
+  { label: "Timeline", href: `/org/${orgId}/project/${projectId}/timeline`, icon: Clock },
+  { label: "Calendar", href: `/org/${orgId}/project/${projectId}/calendar`, icon: Calendar },
+  { label: "Reports", href: `/org/${orgId}/project/${projectId}/reports`, icon: BarChart2 },
+  { label: "Labels", href: `/org/${orgId}/project/${projectId}/labels`, icon: Tag },
+  { label: "Settings", href: `/org/${orgId}/project/${projectId}/settings`, icon: Sliders },
 ];
 
 const ORG_ITEMS = (orgId: string) => [
