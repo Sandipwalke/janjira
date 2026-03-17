@@ -5,7 +5,7 @@
 
 import type {
   User, Organization, OrgMember, OrgInvite, Project, Sprint, Label,
-  Issue, Comment, Activity, IssueStatus, IssuePriority, IssueType, MemberRole,
+  Issue, Comment, Activity, Attachment, IssueStatus, IssuePriority, IssueType, MemberRole,
 } from "@shared/schema";
 
 function uuid() {
@@ -134,6 +134,7 @@ export class ClientStore {
   issues = new Map<string, Issue>(seedIssues.map(i => [i.id, i]));
   comments = new Map<string, Comment>([[seedComment.id, seedComment]]);
   activities = new Map<string, Activity>();
+  attachments = new Map<string, Attachment>();
   issueCounters = new Map<string, number>([[demoProject.id, seedIssues.length]]);
 
   // ── Users ──
@@ -297,6 +298,19 @@ export class ClientStore {
     return c;
   }
   deleteComment(id: string) { this.comments.delete(id); }
+
+  // ── Attachments ──
+  getAttachmentsForIssue(issueId: string) {
+    return Array.from(this.attachments.values())
+      .filter(a => a.issueId === issueId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+  createAttachment(data: Omit<Attachment, "id" | "createdAt">): Attachment {
+    const attachment: Attachment = { ...data, id: uuid(), createdAt: new Date().toISOString() };
+    this.attachments.set(attachment.id, attachment);
+    return attachment;
+  }
+  deleteAttachment(id: string) { this.attachments.delete(id); }
 
   // ── Activity ──
   getActivityForIssue(issueId: string) {
