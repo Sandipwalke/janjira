@@ -11,6 +11,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ── Auth / Session ──────────────────────────────────────────────────────────
 
+  app.get("/api/auth/google/config", (_req, res) => {
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    res.json({
+      configured: Boolean(googleClientId),
+      clientId: googleClientId || null,
+    });
+  });
+
   app.post("/api/auth/google", async (req, res) => {
     const { credential } = req.body as { credential?: string };
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -18,7 +26,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!credential) return res.status(400).json({ error: "Missing Google credential" });
     if (!googleClientId) return res.status(500).json({ error: "Google login is not configured" });
 
-    const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    let tokenInfoRes: Response;
+    try {
+      tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    } catch {
+      return res.status(502).json({ error: "Google token verification unavailable" });
+    }
+
     if (!tokenInfoRes.ok) return res.status(401).json({ error: "Invalid Google credential" });
 
     const tokenInfo = await tokenInfoRes.json() as {
