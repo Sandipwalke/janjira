@@ -6,8 +6,9 @@ type GoogleCredentialPayload = {
   email?: string;
   name?: string;
   picture?: string;
-  sub?: string;
 };
+
+type GoogleLoginInput = string | Partial<User>;
 
 function parseGoogleCredential(credential: string): GoogleCredentialPayload | null {
   try {
@@ -21,11 +22,22 @@ function parseGoogleCredential(credential: string): GoogleCredentialPayload | nu
   }
 }
 
+function upsertLocalGoogleUser(payload: GoogleCredentialPayload) {
+  if (!payload.email) throw new Error("Google authentication failed");
+  const existing = store.getUserByEmail(payload.email);
+  const fallbackUser = existing || store.upsertUser({
+    email: payload.email,
+    name: payload.name || payload.email,
+    avatar: payload.picture,
+  });
+  return fallbackUser;
+}
+
 interface AuthContext {
   user: User | null;
   loading: boolean;
   loginDemo: () => Promise<void>;
-  loginGoogle: (credential: string) => Promise<void>;
+  loginGoogle: (input: GoogleLoginInput) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -45,28 +57,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
   };
 
-  const loginGoogle = async (credential: string) => {
+  const loginGoogle = async (input: GoogleLoginInput) => {
+    // Backward-compatible path for branches that still pass profile payload objects.
+    if (typeof input !== "string") {
+      const existing = input.email ? store.getUserByEmail(input.email) : undefined;
+      const localUser = existing || store.upsertUser({
+        email: input.email || "google@user.com",
+        name: input.name || "Google User",
+        avatar: input.avatar || `https://api.dicebear.com/8.x/avataaars/svg?seed=${Date.now()}`,
+      });
+      setUser(localUser);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential }),
+        body: JSON.stringify({ credential: input }),
       });
       if (!res.ok) throw new Error("Google authentication failed");
       const u = await res.json();
       setUser(u);
       return;
     } catch {
-      const payload = parseGoogleCredential(credential);
-      if (!payload?.email) throw new Error("Google authentication failed");
-
-      const existing = store.getUserByEmail(payload.email);
-      const fallbackUser = existing || store.upsertUser({
-        email: payload.email,
-        name: payload.name || payload.email,
-        avatar: payload.picture,
-      });
-      setUser(fallbackUser);
+      const payload = parseGoogleCredential(input);
+      if (!payload) throw new Error("Google authentication failed");
+      setUser(upsertLocalGoogleUser(payload));
     }
   };
 
