@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useStore, useIssue, useProject, useComments, useActivity, useLabels, useSprints, useOrgMembers, useUsers } from "@/lib/storeContext";
+import { useStore, useIssue, useProject, useComments, useActivity, useLabels, useSprints, useOrgMembers, useUsers, useAttachments } from "@/lib/storeContext";
 import { useLocation } from "wouter";
-import { ArrowLeft, Pencil, Trash2, Send, Link2, Calendar, User2, Tag, Layers, Flag } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Send, Link2, Calendar, User2, Tag, Layers, Flag, Paperclip, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,7 @@ import type { Issue, Comment, Label, User, Project, Sprint, Activity } from "@sh
 import type { IssueStatus, IssuePriority, IssueType } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Props { issueId: string; projectId: string; orgId: string; }
 
@@ -30,6 +31,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
   const project = useProject(projectId);
   const comments = useComments(issueId);
   const activity = useActivity(issueId);
+  const attachments = useAttachments(issueId);
   const labels = useLabels(projectId);
   const sprints = useSprints(projectId);
   const allUsers = useUsers();
@@ -48,6 +50,21 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
     setCommentText("");
   };
   const deleteComment = (id: string) => { store.deleteComment(id); refresh(); };
+
+  const addAttachment = (file: File) => {
+    const driveViewLink = URL.createObjectURL(file);
+    store.createAttachment({
+      issueId,
+      uploaderId: "user-sandip",
+      name: file.name,
+      mimeType: file.type || "application/octet-stream",
+      size: file.size,
+      driveFileId: `local-${Date.now()}`,
+      driveViewLink,
+    });
+    refresh();
+    toast({ title: "Attachment added", description: file.name });
+  };
 
   const initials = (name?: string) => name?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 
@@ -125,7 +142,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
               </div>
             ) : issue.description ? (
               <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
-                <ReactMarkdown>{issue.description}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{issue.description}</ReactMarkdown>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground/50 italic">No description provided.</p>
@@ -133,6 +150,53 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
           </div>
 
           <Separator className="mb-5" />
+
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold">Attachments</h3>
+              <label className="inline-flex">
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) addAttachment(file);
+                    e.currentTarget.value = "";
+                  }}
+                  data-testid="input-attachment"
+                />
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" asChild>
+                  <span>
+                    <Paperclip className="w-3 h-3 mr-1" />
+                    Add file
+                  </span>
+                </Button>
+              </label>
+            </div>
+
+            {attachments.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No files attached yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {attachments.map((att) => {
+                  const isImage = att.mimeType.startsWith("image/");
+                  return (
+                    <a
+                      key={att.id}
+                      href={att.driveViewLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs hover:bg-muted/40"
+                    >
+                      {isImage ? <ImagePlus className="w-3.5 h-3.5" /> : <Paperclip className="w-3.5 h-3.5" />}
+                      <span className="font-medium">{att.name}</span>
+                      <span className="text-muted-foreground ml-auto">{Math.max(1, Math.round(att.size / 1024))} KB</span>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Comments + Activity */}
           <div>
@@ -173,7 +237,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
                     </button>
                   </div>
                   <div className="text-sm leading-relaxed bg-muted/40 rounded-lg px-3 py-2">
-                    <ReactMarkdown className="prose prose-sm dark:prose-invert">{c.body}</ReactMarkdown>
+                    <div className="prose prose-sm dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{c.body}</ReactMarkdown></div>
                   </div>
                 </div>
               </div>
@@ -192,6 +256,7 @@ export default function IssueDetailPage({ issueId, projectId, orgId }: Props) {
                   className="min-h-[80px] text-sm resize-none"
                   data-testid="input-comment"
                 />
+                <p className="text-[11px] text-muted-foreground">Supports Jira-style markdown: **bold**, _italic_, `code`, lists, and links.</p>
                 <Button
                   size="sm" className="h-8 gap-1.5 text-xs"
                   onClick={() => addComment(commentText)}

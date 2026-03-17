@@ -6,7 +6,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { store, ClientStore } from "./store";
 import type {
   User, Organization, OrgMember, OrgInvite, Project, Sprint, Label,
-  Issue, Comment, IssueStatus, IssuePriority, IssueType, MemberRole,
+  Issue, Comment, Attachment, IssueStatus, IssuePriority, IssueType, MemberRole,
 } from "@shared/schema";
 
 interface StoreCtx {
@@ -75,6 +75,11 @@ export function useComments(issueId: string) {
 export function useActivity(issueId: string) {
   const { store, tick } = useStore();
   return store.getActivityForIssue(issueId);
+}
+
+export function useAttachments(issueId: string) {
+  const { store, tick } = useStore();
+  return store.getAttachmentsForIssue(issueId);
 }
 
 export function useOrgMembers(orgId: string) {

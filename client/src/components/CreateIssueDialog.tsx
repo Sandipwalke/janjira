@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CalendarIcon, Hash } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,6 +49,8 @@ export default function CreateIssueDialog({ open, onClose, projectId, orgId, def
       assigneeId: undefined,
       sprintId: defaultSprintId || undefined,
       labelIds: [] as string[],
+      storyPoints: undefined,
+      dueDate: undefined,
     },
   });
 
@@ -168,6 +171,42 @@ export default function CreateIssueDialog({ open, onClose, projectId, orgId, def
                 </FormItem>
               )} />
             )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="storyPoints" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs">Story points</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Hash className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        placeholder="Optional"
+                        className="pl-7"
+                        value={field.value ?? ""}
+                        onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                      />
+                    </div>
+                  </FormControl>
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="dueDate" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs">Due date</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <CalendarIcon className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input type="date" className="pl-7" value={field.value || ""} onChange={e => field.onChange(e.target.value || undefined)} />
+                    </div>
+                  </FormControl>
+                </FormItem>
+              )} />
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">Description supports markdown formatting like Jira.</p>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
