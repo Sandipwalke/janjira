@@ -1,14 +1,66 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { SiGoogle } from "react-icons/si";
 import { HardDrive, Zap, Shield, Users, GitBranch, Layers } from "lucide-react";
 
+type GoogleCredentialResponse = { credential?: string };
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (options: {
+            client_id: string;
+            callback: (response: GoogleCredentialResponse) => void;
+          }) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
+
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 export default function LoginPage() {
   const { loginDemo, loginGoogle } = useAuth();
   const [, setLocation] = useLocation();
   const [loading, setLoading] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+
+  useEffect(() => {
+    if (!googleClientId) return;
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      window.google?.accounts?.id?.initialize({
+        client_id: googleClientId,
+        callback: async (response) => {
+          if (!response.credential) return;
+          setLoading(true);
+          try {
+            await loginGoogle(response.credential);
+            setLocation("/org/org-demo/dashboard");
+          } finally {
+            setLoading(false);
+          }
+        },
+      });
+      setGoogleReady(true);
+    };
+
+    document.head.appendChild(script);
+
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, [loginGoogle, setLocation]);
 
   const handleDemo = async () => {
     setLoading(true);
@@ -17,12 +69,8 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  const handleGoogle = async () => {
-    // In production: initiate real Google OAuth. For demo, use sandip's account.
-    setLoading(true);
-    await loginGoogle({ email: "sandipwalke05@gmail.com", name: "Sandip Walke", sub: "google-sandip" });
-    setLocation("/org/org-demo/dashboard");
-    setLoading(false);
+  const handleGoogle = () => {
+    window.google?.accounts?.id?.prompt();
   };
 
   const features = [
@@ -103,12 +151,15 @@ export default function LoginPage() {
             <Button
               className="w-full h-11 font-medium gap-3"
               onClick={handleGoogle}
-              disabled={loading}
+              disabled={loading || !googleReady}
               data-testid="button-signin-google"
             >
               <SiGoogle className="w-4 h-4" />
               Continue with Google
             </Button>
+            {!googleClientId && (
+              <p className="text-xs text-destructive">Google login is unavailable. Set VITE_GOOGLE_CLIENT_ID to enable it.</p>
+            )}
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>

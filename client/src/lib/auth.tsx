@@ -2,11 +2,30 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { store } from "./store";
 import type { User } from "@shared/schema";
 
+type GoogleCredentialPayload = {
+  email?: string;
+  name?: string;
+  picture?: string;
+  sub?: string;
+};
+
+function parseGoogleCredential(credential: string): GoogleCredentialPayload | null {
+  try {
+    const [, payload] = credential.split(".");
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(normalized);
+    return JSON.parse(json) as GoogleCredentialPayload;
+  } catch {
+    return null;
+  }
+}
+
 interface AuthContext {
   user: User | null;
   loading: boolean;
   loginDemo: () => Promise<void>;
-  loginGoogle: (payload: Partial<User>) => Promise<void>;
+  loginGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -26,14 +45,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
   };
 
-  const loginGoogle = async (payload: Partial<User>) => {
-    const existing = payload.email ? store.getUserByEmail(payload.email) : undefined;
-    const u = existing || store.upsertUser({
-      email: payload.email || "google@user.com",
-      name: payload.name || "Google User",
-      avatar: payload.avatar || `https://api.dicebear.com/8.x/avataaars/svg?seed=${Date.now()}`,
-    });
-    setUser(u);
+  const loginGoogle = async (credential: string) => {
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+      if (!res.ok) throw new Error("Google authentication failed");
+      const u = await res.json();
+      setUser(u);
+      return;
+    } catch {
+      const payload = parseGoogleCredential(credential);
+      if (!payload?.email) throw new Error("Google authentication failed");
+
+      const existing = store.getUserByEmail(payload.email);
+      const fallbackUser = existing || store.upsertUser({
+        email: payload.email,
+        name: payload.name || payload.email,
+        avatar: payload.picture,
+      });
+      setUser(fallbackUser);
+    }
   };
 
   const logout = async () => {
