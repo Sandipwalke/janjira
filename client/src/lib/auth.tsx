@@ -6,7 +6,7 @@ interface AuthContext {
   user: User | null;
   loading: boolean;
   loginDemo: () => Promise<void>;
-  loginGoogle: (payload: Partial<User>) => Promise<void>;
+  loginGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -26,13 +26,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
   };
 
-  const loginGoogle = async (payload: Partial<User>) => {
-    const existing = payload.email ? store.getUserByEmail(payload.email) : undefined;
-    const u = existing || store.upsertUser({
-      email: payload.email || "google@user.com",
-      name: payload.name || "Google User",
-      avatar: payload.avatar || `https://api.dicebear.com/8.x/avataaars/svg?seed=${Date.now()}`,
+  const loginGoogle = async (credential: string) => {
+    const res = await fetch("/api/auth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
     });
+    if (!res.ok) throw new Error("Google authentication failed");
+    const u = await res.json();
     setUser(u);
   };
 
