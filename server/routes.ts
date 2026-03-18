@@ -6,25 +6,26 @@ import {
   insertOrganizationSchema, insertProjectSchema, insertIssueSchema,
   insertCommentSchema, insertSprintSchema, insertLabelSchema
 } from "@shared/schema";
+import { getGoogleClientId } from "@shared/googleAuth";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
   // ── Auth / Session ──────────────────────────────────────────────────────────
 
   app.get("/api/auth/google/config", (_req, res) => {
-    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    const envGoogleClientId = process.env.GOOGLE_CLIENT_ID;
+    const googleClientId = getGoogleClientId(envGoogleClientId);
     res.json({
-      configured: Boolean(googleClientId),
-      clientId: googleClientId || null,
+      configured: Boolean(envGoogleClientId),
+      clientId: googleClientId,
     });
   });
 
   app.post("/api/auth/google", async (req, res) => {
     const { credential } = req.body as { credential?: string };
-    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    const googleClientId = getGoogleClientId(process.env.GOOGLE_CLIENT_ID);
 
     if (!credential) return res.status(400).json({ error: "Missing Google credential" });
-    if (!googleClientId) return res.status(500).json({ error: "Google login is not configured" });
 
     let tokenInfoRes: Response;
     try {
