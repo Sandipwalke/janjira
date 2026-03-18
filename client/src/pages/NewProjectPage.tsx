@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useStore } from "@/lib/storeContext";
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft } from "lucide-react";
@@ -12,14 +11,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { insertProjectSchema } from "@shared/schema";
 import { PROJECT_COLORS, cn } from "@/lib/utils";
-import type { Project } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 
 interface Props { orgId: string; }
 
 export default function NewProjectPage({ orgId }: Props) {
   const [, setLocation] = useLocation();
   const { store, refresh } = useStore();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [selectedColor, setSelectedColor] = useState(PROJECT_COLORS[0]);
 
@@ -62,7 +62,7 @@ export default function NewProjectPage({ orgId }: Props) {
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(d => createMutation.mutate(d))} className="space-y-4">
+              <form onSubmit={form.handleSubmit(d => createProject(d))} className="space-y-4">
                 {/* Preview */}
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
                   <span

@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { store } from "./store";
 import type { User } from "@shared/schema";
 
+const AUTH_STORAGE_KEY = "janjira.auth.user.email";
+
 type GoogleCredentialPayload = {
   email?: string;
   name?: string;
@@ -48,13 +50,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // No persistence — users re-login each session (sandboxed iframe environment)
+    const savedEmail = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (savedEmail) {
+      const existing = store.getUserByEmail(savedEmail);
+      if (existing) setUser(existing);
+    }
     setLoading(false);
   }, []);
 
   const loginDemo = async () => {
     const u = store.getUser("user-sandip")!;
     setUser(u);
+    window.localStorage.setItem(AUTH_STORAGE_KEY, u.email);
   };
 
   const loginGoogle = async (input: GoogleLoginInput) => {
@@ -67,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         avatar: input.avatar || `https://api.dicebear.com/8.x/avataaars/svg?seed=${Date.now()}`,
       });
       setUser(localUser);
+      window.localStorage.setItem(AUTH_STORAGE_KEY, localUser.email);
       return;
     }
 
@@ -79,16 +87,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error("Google authentication failed");
       const u = await res.json();
       setUser(u);
+      window.localStorage.setItem(AUTH_STORAGE_KEY, u.email);
       return;
     } catch {
       const payload = parseGoogleCredential(input);
       if (!payload) throw new Error("Google authentication failed");
-      setUser(upsertLocalGoogleUser(payload));
+      const localUser = upsertLocalGoogleUser(payload);
+      setUser(localUser);
+      window.localStorage.setItem(AUTH_STORAGE_KEY, localUser.email);
     }
   };
 
   const logout = async () => {
     setUser(null);
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
   return <Ctx.Provider value={{ user, loading, loginDemo, loginGoogle, logout }}>{children}</Ctx.Provider>;

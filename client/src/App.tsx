@@ -31,11 +31,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 // Theme management
 function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const persisted = window.localStorage.getItem("janjira.theme");
+    if (persisted === "light" || persisted === "dark") return persisted;
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
+    window.localStorage.setItem("janjira.theme", theme);
   }, [theme]);
 
   const toggle = () => setTheme(t => t === "dark" ? "light" : "dark");
