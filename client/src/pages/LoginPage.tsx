@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { SiGoogle } from "react-icons/si";
 import { HardDrive, Zap, Shield, Users, GitBranch, Layers } from "lucide-react";
+import { getGoogleClientId } from "@shared/googleAuth";
 
 type GoogleCredentialResponse = { credential?: string };
 
@@ -23,7 +24,7 @@ declare global {
   }
 }
 
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const googleClientId = getGoogleClientId(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
 export default function LoginPage() {
   const { loginDemo, loginGoogle } = useAuth();
@@ -157,10 +158,6 @@ export default function LoginPage() {
               <SiGoogle className="w-4 h-4" />
               Continue with Google
             </Button>
-            {!googleClientId && (
-              <p className="text-xs text-destructive">Google login is unavailable. Set VITE_GOOGLE_CLIENT_ID to enable it.</p>
-            )}
-
             <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
               <div className="relative flex justify-center text-xs text-muted-foreground"><span className="bg-background px-3">or</span></div>
