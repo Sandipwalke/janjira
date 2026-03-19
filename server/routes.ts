@@ -83,6 +83,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(user);
   });
 
+  app.get("/api/snapshots/:email", async (req, res) => {
+    const email = decodeURIComponent(req.params.email).trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: "Email required" });
+    const snapshot = await storage.getUserSnapshot(email);
+    res.json({ snapshot: snapshot ?? null });
+  });
+
+  app.put("/api/snapshots/:email", async (req, res) => {
+    const email = decodeURIComponent(req.params.email).trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: "Email required" });
+    if (typeof req.body !== "object" || req.body === null) {
+      return res.status(400).json({ error: "Snapshot object required" });
+    }
+    await storage.upsertUserSnapshot(email, req.body);
+    res.json({ ok: true });
+  });
+
   // ── Users ───────────────────────────────────────────────────────────────────
 
   app.get("/api/users/:id", async (req, res) => {
