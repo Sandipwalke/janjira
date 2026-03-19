@@ -81,6 +81,10 @@ export interface IStorage {
   // Google Drive sync
   exportDatabase(orgId: string): Promise<DriveDatabase>;
   importDatabase(data: DriveDatabase): Promise<void>;
+
+  // Per-user snapshot sync (for multi-device continuity)
+  getUserSnapshot(email: string): Promise<unknown | undefined>;
+  upsertUserSnapshot(email: string, snapshot: unknown): Promise<void>;
 }
 
 // ─── In-Memory Implementation ─────────────────────────────────────────────────
@@ -98,6 +102,7 @@ export class MemStorage implements IStorage {
   private activities = new Map<string, Activity>();
   private attachments = new Map<string, Attachment>();
   private issueCounters = new Map<string, number>();
+  private userSnapshots = new Map<string, unknown>();
 
   constructor() { this._seed(); }
 
@@ -473,6 +478,14 @@ export class MemStorage implements IStorage {
     data.comments.forEach(c => this.comments.set(c.id, c));
     data.activities.forEach(a => this.activities.set(a.id, a));
     data.attachments.forEach(a => this.attachments.set(a.id, a));
+  }
+
+  async getUserSnapshot(email: string): Promise<unknown | undefined> {
+    return this.userSnapshots.get(email.toLowerCase());
+  }
+
+  async upsertUserSnapshot(email: string, snapshot: unknown): Promise<void> {
+    this.userSnapshots.set(email.toLowerCase(), snapshot);
   }
 }
 
