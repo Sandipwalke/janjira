@@ -8,6 +8,23 @@ import type {
   Issue, Comment, Activity, Attachment, IssueStatus, IssuePriority, IssueType, MemberRole,
 } from "@shared/schema";
 
+export const STORE_STORAGE_KEY = "janjira.store.v1";
+
+export interface ClientStoreSnapshot {
+  users: User[];
+  orgs: Organization[];
+  members: OrgMember[];
+  invites: OrgInvite[];
+  projects: Project[];
+  sprints: Sprint[];
+  labels: Label[];
+  issues: Issue[];
+  comments: Comment[];
+  activities: Activity[];
+  attachments: Attachment[];
+  issueCounters: Array<[string, number]>;
+}
+
 function uuid() {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 }
@@ -136,6 +153,38 @@ export class ClientStore {
   activities = new Map<string, Activity>();
   attachments = new Map<string, Attachment>();
   issueCounters = new Map<string, number>([[demoProject.id, seedIssues.length]]);
+
+  toSnapshot(): ClientStoreSnapshot {
+    return {
+      users: Array.from(this.users.values()),
+      orgs: Array.from(this.orgs.values()),
+      members: Array.from(this.members.values()),
+      invites: Array.from(this.invites.values()),
+      projects: Array.from(this.projects.values()),
+      sprints: Array.from(this.sprints.values()),
+      labels: Array.from(this.labels.values()),
+      issues: Array.from(this.issues.values()),
+      comments: Array.from(this.comments.values()),
+      activities: Array.from(this.activities.values()),
+      attachments: Array.from(this.attachments.values()),
+      issueCounters: Array.from(this.issueCounters.entries()),
+    };
+  }
+
+  hydrateFromSnapshot(snapshot: ClientStoreSnapshot) {
+    this.users = new Map(snapshot.users.map(item => [item.id, item]));
+    this.orgs = new Map(snapshot.orgs.map(item => [item.id, item]));
+    this.members = new Map(snapshot.members.map(item => [item.id, item]));
+    this.invites = new Map(snapshot.invites.map(item => [item.id, item]));
+    this.projects = new Map(snapshot.projects.map(item => [item.id, item]));
+    this.sprints = new Map(snapshot.sprints.map(item => [item.id, item]));
+    this.labels = new Map(snapshot.labels.map(item => [item.id, item]));
+    this.issues = new Map(snapshot.issues.map(item => [item.id, item]));
+    this.comments = new Map(snapshot.comments.map(item => [item.id, item]));
+    this.activities = new Map(snapshot.activities.map(item => [item.id, item]));
+    this.attachments = new Map(snapshot.attachments.map(item => [item.id, item]));
+    this.issueCounters = new Map(snapshot.issueCounters);
+  }
 
   // ── Users ──
   getUser(id: string) { return this.users.get(id); }
