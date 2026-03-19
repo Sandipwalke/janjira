@@ -2,8 +2,8 @@
  * StoreContext — wraps ClientStore in React state so mutations trigger re-renders.
  * All pages use useStore() instead of useQuery/apiRequest.
  */
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { store, ClientStore } from "./store";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { store, ClientStore, STORE_STORAGE_KEY, type ClientStoreSnapshot } from "./store";
 import type {
   User, Organization, OrgMember, OrgInvite, Project, Sprint, Label,
   Issue, Comment, Attachment, IssueStatus, IssuePriority, IssueType, MemberRole,
@@ -19,8 +19,31 @@ interface StoreCtx {
 const Ctx = createContext<StoreCtx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const [hydrated, setHydrated] = useState(false);
   const [tick, setTick] = useState(0);
-  const refresh = useCallback(() => setTick(t => t + 1), []);
+  const refresh = useCallback(() => {
+    window.localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(store.toSnapshot()));
+    setTick(t => t + 1);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORE_STORAGE_KEY);
+      if (raw) {
+        const snapshot = JSON.parse(raw) as ClientStoreSnapshot;
+        store.hydrateFromSnapshot(snapshot);
+      } else {
+        window.localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(store.toSnapshot()));
+      }
+    } catch {
+      // Ignore malformed storage and continue with seed data.
+    } finally {
+      setHydrated(true);
+      setTick(t => t + 1);
+    }
+  }, []);
+
+  if (!hydrated) return null;
   return <Ctx.Provider value={{ tick, refresh, store }}>{children}</Ctx.Provider>;
 }
 
