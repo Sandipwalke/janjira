@@ -23,6 +23,8 @@ interface Props {
   projectId: string | null;
   theme: string;
   onToggleTheme: () => void;
+  className?: string;
+  onNavigate?: () => void;
 }
 
 const NAV_ITEMS = (orgId: string, projectId: string) => [
@@ -45,7 +47,7 @@ const ORG_ITEMS = (orgId: string) => [
   { label: "Settings", href: `/org/${orgId}/settings`, icon: Settings },
 ];
 
-export default function AppSidebar({ orgId, projectId, theme, onToggleTheme }: Props) {
+export default function AppSidebar({ orgId, projectId, theme, onToggleTheme, className, onNavigate }: Props) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [projectsOpen, setProjectsOpen] = useState(true);
@@ -54,9 +56,12 @@ export default function AppSidebar({ orgId, projectId, theme, onToggleTheme }: P
   const projects = useProjects(orgId);
 
   const initials = (name?: string) => name?.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
+  const handleNavigate = () => {
+    onNavigate?.();
+  };
 
   return (
-    <aside className="flex flex-col w-60 shrink-0 h-screen bg-sidebar border-r border-sidebar-border text-sidebar-foreground overflow-y-auto">
+    <aside className={cn("flex flex-col w-60 shrink-0 h-screen bg-sidebar border-r border-sidebar-border text-sidebar-foreground overflow-y-auto", className)}>
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-sidebar-border">
         {/* Logo */}
@@ -92,7 +97,7 @@ export default function AppSidebar({ orgId, projectId, theme, onToggleTheme }: P
               location === item.href
                 ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                 : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-            )}>
+            )} onClick={handleNavigate}>
               <item.icon className="w-4 h-4 shrink-0" />
               {item.label}
             </a>
@@ -121,7 +126,7 @@ export default function AppSidebar({ orgId, projectId, theme, onToggleTheme }: P
                 p.id === projectId
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-              )}>
+              )} onClick={handleNavigate}>
                 <span
                   className="w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center shrink-0 text-white"
                   style={{ background: p.color }}
@@ -140,7 +145,7 @@ export default function AppSidebar({ orgId, projectId, theme, onToggleTheme }: P
                       location === item.href
                         ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-                    )}>
+                    )} onClick={handleNavigate}>
                       <item.icon className="w-3.5 h-3.5 shrink-0" />
                       {item.label}
                     </a>
@@ -152,7 +157,7 @@ export default function AppSidebar({ orgId, projectId, theme, onToggleTheme }: P
         ))}
 
         <Link href={`/org/${orgId}/new-project`}>
-          <a className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent/40 transition-colors cursor-pointer mt-1">
+          <a className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-sidebar-foreground/50 hover:text-sidebar-foreground/70 hover:bg-sidebar-accent/40 transition-colors cursor-pointer mt-1" onClick={handleNavigate}>
             <Plus className="w-4 h-4 shrink-0" />
             New Project
           </a>
