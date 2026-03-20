@@ -8,6 +8,10 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import { StoreProvider } from "./lib/storeContext";
 import { useState, useEffect } from "react";
 import AppSidebar from "@/components/AppSidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Menu } from "lucide-react";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import BoardPage from "@/pages/BoardPage";
@@ -63,6 +67,8 @@ function AppRouter() {
   const { orgId, projectId, issueId } = useRouteParams();
   const [loc, setLoc] = useHashLocation();
   const { user, loading } = useAuth();
+  const isMobile = useIsMobile();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Redirect unauthenticated users to /login (except from /login itself)
   useEffect(() => {
@@ -93,10 +99,11 @@ function AppRouter() {
 
   // Decide if we should show sidebar layout
   const showSidebar = !!user && !!orgId;
+  const projectTitle = projectId ? projectId.toUpperCase() : "Workspace";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {showSidebar && (
+      {showSidebar && !isMobile && (
         <AppSidebar
           orgId={orgId!}
           projectId={projectId}
@@ -104,7 +111,43 @@ function AppRouter() {
           onToggleTheme={toggle}
         />
       )}
-      <main className={showSidebar ? "flex-1 overflow-hidden" : "flex-1"}>
+      <main className={showSidebar ? "flex-1 overflow-hidden min-w-0" : "flex-1"}>
+        {showSidebar && isMobile && (
+          <>
+            <header className="h-14 border-b border-border bg-background/95 backdrop-blur px-3 flex items-center justify-between sticky top-0 z-30">
+              <div className="flex items-center gap-2 min-w-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileSidebarOpen(true)}
+                  aria-label="Open navigation menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
+                <p className="text-sm font-medium truncate">{projectTitle}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={toggle}>
+                {theme === "dark" ? "Light" : "Dark"}
+              </Button>
+            </header>
+
+            <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+              <SheetContent side="left" className="p-0 w-[19rem]">
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Navigation menu</SheetTitle>
+                </SheetHeader>
+                <AppSidebar
+                  orgId={orgId!}
+                  projectId={projectId}
+                  theme={theme}
+                  onToggleTheme={toggle}
+                  onNavigate={() => setMobileSidebarOpen(false)}
+                  className="w-full border-r-0"
+                />
+              </SheetContent>
+            </Sheet>
+          </>
+        )}
         <Switch>
           {/* Auth */}
           <Route path="/" component={() => {
