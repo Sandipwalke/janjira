@@ -4,6 +4,10 @@ import type { User } from "@shared/schema";
 
 const AUTH_STORAGE_KEY = "janjira.auth.user.email";
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 type GoogleCredentialPayload = {
   email?: string;
   name?: string;
@@ -26,10 +30,11 @@ function parseGoogleCredential(credential: string): GoogleCredentialPayload | nu
 
 function upsertLocalGoogleUser(payload: GoogleCredentialPayload) {
   if (!payload.email) throw new Error("Google authentication failed");
-  const existing = store.getUserByEmail(payload.email);
+  const normalizedEmail = normalizeEmail(payload.email);
+  const existing = store.getUserByEmail(normalizedEmail);
   const fallbackUser = existing || store.upsertUser({
-    email: payload.email,
-    name: payload.name || payload.email,
+    email: normalizedEmail,
+    name: payload.name || normalizedEmail,
     avatar: payload.picture,
   });
   return fallbackUser;
@@ -52,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedEmail = window.localStorage.getItem(AUTH_STORAGE_KEY);
     if (savedEmail) {
-      const existing = store.getUserByEmail(savedEmail);
+      const existing = store.getUserByEmail(normalizeEmail(savedEmail));
       if (existing) setUser(existing);
     }
     setLoading(false);
@@ -61,20 +66,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginDemo = async () => {
     const u = store.getUser("user-sandip")!;
     setUser(u);
-    window.localStorage.setItem(AUTH_STORAGE_KEY, u.email);
+    window.localStorage.setItem(AUTH_STORAGE_KEY, normalizeEmail(u.email));
   };
 
   const loginGoogle = async (input: GoogleLoginInput) => {
     // Backward-compatible path for branches that still pass profile payload objects.
     if (typeof input !== "string") {
-      const existing = input.email ? store.getUserByEmail(input.email) : undefined;
+      const normalizedEmail = input.email ? normalizeEmail(input.email) : undefined;
+      const existing = normalizedEmail ? store.getUserByEmail(normalizedEmail) : undefined;
       const localUser = existing || store.upsertUser({
-        email: input.email || "google@user.com",
-        name: input.name || "Google User",
+        email: normalizedEmail || "google@user.com",
+        name: input.name || normalizedEmail || "Google User",
         avatar: input.avatar || `https://api.dicebear.com/8.x/avataaars/svg?seed=${Date.now()}`,
       });
       setUser(localUser);
-      window.localStorage.setItem(AUTH_STORAGE_KEY, localUser.email);
+      window.localStorage.setItem(AUTH_STORAGE_KEY, normalizeEmail(localUser.email));
       return;
     }
 
@@ -87,14 +93,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error("Google authentication failed");
       const u = await res.json();
       setUser(u);
-      window.localStorage.setItem(AUTH_STORAGE_KEY, u.email);
+      window.localStorage.setItem(AUTH_STORAGE_KEY, normalizeEmail(u.email));
       return;
     } catch {
       const payload = parseGoogleCredential(input);
       if (!payload) throw new Error("Google authentication failed");
       const localUser = upsertLocalGoogleUser(payload);
       setUser(localUser);
-      window.localStorage.setItem(AUTH_STORAGE_KEY, localUser.email);
+      window.localStorage.setItem(AUTH_STORAGE_KEY, normalizeEmail(localUser.email));
     }
   };
 

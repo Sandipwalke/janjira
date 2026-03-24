@@ -237,7 +237,8 @@ export class MemStorage implements IStorage {
   // ── Users ──
   async getUser(id: string) { return this.users.get(id); }
   async getUserByEmail(email: string) {
-    return Array.from(this.users.values()).find(u => u.email === email);
+    const normalized = email.trim().toLowerCase();
+    return Array.from(this.users.values()).find(u => u.email.trim().toLowerCase() === normalized);
   }
   async upsertUser(data: Omit<User, "id"> & { id?: string }): Promise<User> {
     const id = data.id || randomUUID();
