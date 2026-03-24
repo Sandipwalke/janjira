@@ -188,7 +188,10 @@ export class ClientStore {
 
   // ── Users ──
   getUser(id: string) { return this.users.get(id); }
-  getUserByEmail(email: string) { return Array.from(this.users.values()).find(u => u.email === email); }
+  getUserByEmail(email: string) {
+    const normalized = email.trim().toLowerCase();
+    return Array.from(this.users.values()).find(u => u.email.trim().toLowerCase() === normalized);
+  }
   upsertUser(data: Omit<User, "id"> & { id?: string }): User {
     const id = data.id || uuid();
     const user: User = { ...data, id };
