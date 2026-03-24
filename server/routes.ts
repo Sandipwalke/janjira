@@ -6,7 +6,7 @@ import {
   insertOrganizationSchema, insertProjectSchema, insertIssueSchema,
   insertCommentSchema, insertSprintSchema, insertLabelSchema
 } from "@shared/schema";
-import { getGoogleClientId } from "@shared/googleAuth";
+import { getGoogleClientId, getGoogleClientSecret } from "@shared/googleAuth";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
@@ -14,10 +14,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.get("/api/auth/google/config", (_req, res) => {
     const envGoogleClientId = process.env.GOOGLE_CLIENT_ID;
+    const envGoogleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
     const googleClientId = getGoogleClientId(envGoogleClientId);
+    const googleClientSecret = getGoogleClientSecret(envGoogleClientSecret);
+
+    if (!envGoogleClientId) process.env.GOOGLE_CLIENT_ID = googleClientId;
+    if (!envGoogleClientSecret) process.env.GOOGLE_CLIENT_SECRET = googleClientSecret;
+
     res.json({
-      configured: Boolean(envGoogleClientId),
+      configured: Boolean(envGoogleClientId && envGoogleClientSecret),
       clientId: googleClientId,
+      clientSecretConfigured: Boolean(envGoogleClientSecret),
     });
   });
 
