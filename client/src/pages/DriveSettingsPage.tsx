@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOrg, useStore } from "@/lib/storeContext";
 import { HardDrive, RefreshCw, Download, Shield, Check, AlertCircle, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,6 +15,7 @@ export default function DriveSettingsPage({ orgId }: Props) {
   const [syncing, setSyncing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [needsProductionSetup, setNeedsProductionSetup] = useState(true);
 
   const exportJSON = () => {
     setExporting(true);
@@ -38,6 +39,27 @@ export default function DriveSettingsPage({ orgId }: Props) {
     toast({ title: "Synced to Drive", description: "Your org data has been saved to Google Drive" });
     setSyncing(false);
   };
+
+  useEffect(() => {
+    let active = true;
+
+    const loadGoogleConfig = async () => {
+      try {
+        const res = await fetch("/api/auth/google/config");
+        if (!res.ok) return;
+        const config = await res.json() as { configured?: boolean };
+        if (active) setNeedsProductionSetup(!Boolean(config.configured));
+      } catch {
+        // Keep warning visible if config check is unavailable.
+      }
+    };
+
+    loadGoogleConfig();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
@@ -125,31 +147,33 @@ export default function DriveSettingsPage({ orgId }: Props) {
           </CardContent>
         </Card>
 
-        <Card className="border-yellow-500/30 bg-yellow-50/50 dark:bg-yellow-900/10">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-yellow-600" />
-              <CardTitle className="text-sm text-yellow-700 dark:text-yellow-500">Production Setup Required</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-yellow-700 dark:text-yellow-400 mb-3">
-              To enable real Google Drive sync, configure Google OAuth 2.0 and the Drive API in the backend.
-            </p>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>1. Create a project in Google Cloud Console</p>
-              <p>2. Enable Google Drive API and Google OAuth</p>
-              <p>3. Set <code className="bg-muted px-1 rounded">GOOGLE_CLIENT_ID</code> and <code className="bg-muted px-1 rounded">GOOGLE_CLIENT_SECRET</code></p>
-              <p>4. Add your domain to authorized redirect URIs</p>
-            </div>
-            <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-2 gap-1" asChild>
-              <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer">
-                Open Google Cloud Console
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </Button>
-          </CardContent>
-        </Card>
+        {needsProductionSetup && (
+          <Card className="border-yellow-500/30 bg-yellow-50/50 dark:bg-yellow-900/10">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-yellow-600" />
+                <CardTitle className="text-sm text-yellow-700 dark:text-yellow-500">Production Setup Required</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-yellow-700 dark:text-yellow-400 mb-3">
+                To enable real Google Drive sync, configure Google OAuth 2.0 and the Drive API in the backend.
+              </p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>1. Create a project in Google Cloud Console</p>
+                <p>2. Enable Google Drive API and Google OAuth</p>
+                <p>3. Set <code className="bg-muted px-1 rounded">GOOGLE_CLIENT_ID</code> and <code className="bg-muted px-1 rounded">GOOGLE_CLIENT_SECRET</code></p>
+                <p>4. Add your domain to authorized redirect URIs</p>
+              </div>
+              <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-2 gap-1" asChild>
+                <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer">
+                  Open Google Cloud Console
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
