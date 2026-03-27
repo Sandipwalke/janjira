@@ -88,14 +88,14 @@ app.use((req, res, next) => {
     return res.status(status).json({ message });
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
+  // Default to production-style static serving unless explicitly in development.
+  // This prevents accidental dev-mode boot in hosts that don't set NODE_ENV.
+  // Vite middleware should only run for local development.
+  if (process.env.NODE_ENV === "development") {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
+  } else {
+    serveStatic(app);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
